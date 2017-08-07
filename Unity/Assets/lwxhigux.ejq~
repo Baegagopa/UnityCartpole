@@ -1,0 +1,356 @@
+﻿using UnityEngine;
+using System;
+using System.Net.Sockets;
+using System.Net;
+using System.Text;
+using System.Threading;
+using System.Runtime.InteropServices;
+using System.Runtime.Serialization.Formatters.Binary;
+using System.Runtime.Serialization;
+using System.IO;
+
+[Serializable]
+public struct Packet
+{
+    public int opcode;
+    public string message;
+
+    public static byte PacketToArray()
+    {
+        byte[] data;
+        return 
+    }
+}
+
+class SocketServer : MonoBehaviour
+{
+    Socket SeverSocket = null;
+    Thread Socket_Thread = null;
+    bool Socket_Thread_Flag = false;
+
+    Packet data;
+
+    IPEndPoint ipep;
+    Socket client;
+    IPEndPoint clientep;
+    NetworkStream recvStm;
+    NetworkStream sendStm;
+
+    void Awake()
+    {
+        Socket_Thread = new Thread(Dowrk);
+        Socket_Thread_Flag = true;
+        Socket_Thread.Start();
+        data = new Packet();
+        data.opcode = 1;
+        data.message = "aaa";
+    }
+
+    private void Update()
+    {
+        if (Input.GetKeyDown(KeyCode.A))
+            RecvMessage();
+    }
+
+    public static byte[] PacketToArray(Packet packet)
+    {
+        IFormatter formatter = new BinaryFormatter();
+        MemoryStream stream = new MemoryStream();
+
+        formatter.Serialize(stream, packet);
+        byte[] packetArray = stream.GetBuffer();
+
+        stream.Close();
+        Debug.Log(packetArray);
+        return packetArray;
+    }
+
+    public static Packet ArrayToPacket(byte[] array)
+    {
+        IFormatter formatter = new BinaryFormatter();
+        MemoryStream stream = new MemoryStream(array);
+
+        Packet packet = new Packet();
+        packet = (Packet)formatter.Deserialize(stream);
+
+        stream.Close();
+
+        return packet;
+    }
+
+    private void Dowrk()
+    {
+        SeverSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+        ipep = new IPEndPoint(IPAddress.Any, 8080);
+        SeverSocket.Bind(ipep);
+        SeverSocket.Listen(10);
+
+        Debug.Log("소켓 대기중....");
+        client = SeverSocket.Accept();//client에서 수신을 요청하면 접속합니다.
+        Debug.Log("소켓 연결되었습니다.");
+
+        clientep = (IPEndPoint)client.RemoteEndPoint;
+        recvStm = new NetworkStream(client);
+        sendStm = new NetworkStream(client);
+        
+        while (Socket_Thread_Flag)
+        {
+            byte[] receiveBuffer = new byte[256];
+            try
+            {
+                recvStm.Read(receiveBuffer, 0, receiveBuffer.Length);
+                string Test = Encoding.Default.GetString(receiveBuffer);
+                Debug.Log(Test);
+            }
+            catch (Exception e)
+            {
+                Socket_Thread_Flag = false;
+                client.Close();
+                SeverSocket.Close();
+                continue;
+            }
+
+        }
+
+    }
+
+    private void SendMessage()
+    {
+
+    }
+
+    private void RecvMessage()
+    {
+        byte[] packetArray = PacketToArray(data);
+        recvStm.Write(packetArray, 0, packetArray.Length);
+    }
+
+    void OnApplicationQuit()
+    {
+        try
+        {
+            Socket_Thread_Flag = false;
+            Socket_Thread.Abort();
+            SeverSocket.Close();
+        }
+
+        catch
+        {
+            Debug.Log("소켓과 쓰레드 종료때 오류가 발생");
+        }
+    }
+
+
+}
+
+
+
+/*
+
+class SocketServer : MonoBehaviour
+{
+    Socket SeverSocket = null;
+    Thread Socket_Thread = null;
+    bool Socket_Thread_Flag = false;
+
+    void Awake()
+    {
+        Socket_Thread = new Thread(Dowrk);
+        Socket_Thread_Flag = true;
+        Socket_Thread.Start();
+    }
+
+    private void Dowrk()
+    {
+        SeverSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+        IPEndPoint ipep = new IPEndPoint(IPAddress.Any, 8080);
+        SeverSocket.Bind(ipep);
+        SeverSocket.Listen(10);
+
+        Debug.Log("소켓 대기중....");
+        Socket client = SeverSocket.Accept();//client에서 수신을 요청하면 접속합니다.
+        Debug.Log("소켓 연결되었습니다.");
+
+        IPEndPoint clientep = (IPEndPoint)client.RemoteEndPoint;
+        NetworkStream recvStm = new NetworkStream(client);
+        NetworkStream sendStm = new NetworkStream(client);
+        
+        while (Socket_Thread_Flag)
+        {
+            byte[] receiveBuffer = new byte[256];
+            try
+            {
+                recvStm.Read(receiveBuffer, 0, receiveBuffer.Length);
+                recvStm.Write(receiveBuffer, 0, receiveBuffer.ToString().Length+1);
+                Debug.Log(receiveBuffer.ToString().Length);
+                string Test = Encoding.Default.GetString(receiveBuffer);
+                Debug.Log(Test);
+            }
+            catch (Exception e)
+            {
+                Socket_Thread_Flag = false;
+                client.Close();
+                SeverSocket.Close();
+                continue;
+            }
+
+        }
+
+    }
+
+    private void SendMessage()
+    {
+
+    }
+
+    private void RecvMessage()
+    {
+
+    }
+
+    void OnApplicationQuit()
+    {
+        try
+        {
+            Socket_Thread_Flag = false;
+            Socket_Thread.Abort();
+            SeverSocket.Close();
+        }
+
+        catch
+        {
+            Debug.Log("소켓과 쓰레드 종료때 오류가 발생");
+        }
+    }
+
+
+}
+ 
+*/
+
+/*
+using System;
+using System.IO;
+using System.Net;
+using System.Net.Sockets;
+using System.Threading;
+using UnityEngine;
+
+class SocketServer : MonoBehaviour
+{
+    private IPAddress mAddr;
+    private TcpListener mServer;
+    private TcpClient mClient;
+
+    StreamWriter mWriter;
+    StreamReader mReader;
+
+    private Thread mThreadAccept;
+    private Thread mThreadReceive;
+    private Thread mThreadSend;
+
+
+    private void Start()
+    {
+        Debug.Log(11);
+        this.mAddr = IPAddress.Parse("127.0.0.1");
+        this.mServer = new TcpListener(this.mAddr, 8080);
+        this.mServer.Start();
+
+        Debug.Log("Server Start!.");
+
+        this.mThreadAccept = new Thread(new ThreadStart(StartListen));
+        this.mThreadAccept.Start();
+
+        this.mThreadReceive = new Thread(new ThreadStart(StartReceive));
+        this.mThreadReceive.Start();
+
+        this.mThreadSend = new Thread(new ThreadStart(StartSend));
+        this.mThreadSend.Start();
+    }
+
+
+    public void EndServer()
+    {
+        if (this.mThreadAccept.IsAlive)
+            this.mThreadAccept.Abort();
+
+        if (this.mThreadReceive.IsAlive)
+            this.mThreadReceive.Abort();
+
+        if (this.mThreadSend.IsAlive)
+            this.mThreadSend.Abort();
+
+        this.mClient.Close(); //Clinet 끊기 
+        this.mServer.Stop(); //서버 멈추기
+    }
+
+    private void StartListen()
+    {
+        //Client 소켓 연결
+        this.mClient = this.mServer.AcceptTcpClient();
+        Debug.Log("Clinet Connect!");
+
+        //Client와 데이터 주고 받는 Stream
+        NetworkStream _stream = this.mClient.GetStream();
+        this.mWriter = new StreamWriter(_stream);
+        this.mReader = new StreamReader(_stream);
+
+
+        String _str = String.Format("Server Connect!");
+        mWriter.WriteLine(_str);
+        mWriter.Flush();
+
+    }
+
+    private void StartReceive()
+    {
+        while (true)
+        {
+            try
+            {
+                String _str = String.Format(mReader.ReadLine());
+                Console.WriteLine(_str);
+            }
+
+            catch (NullReferenceException)
+            {
+            }
+
+            catch (IOException)
+            {
+                this.mClient.Close();
+                this.mThreadSend.Abort();
+                this.mThreadReceive.Abort();
+            }
+        }
+    }
+
+
+
+    private void StartSend()
+    {
+        while (true)
+        {
+            try
+            {
+                String _str = String.Format(Convert.ToString(1));
+                mWriter.WriteLine(_str);
+                mWriter.Flush();
+            }
+            catch (NullReferenceException)
+            {
+            }
+            catch (IOException)
+            {
+                this.mClient.Close();
+                this.mThreadSend.Abort();
+                this.mThreadReceive.Abort();
+
+            }
+        }
+    }
+}
+
+
+*/
